@@ -33,6 +33,9 @@ f = 1000        # Frequency for buzzer
 t = 100         # Duration of buzzer beep (ms)
 tired = 0       # Tiredness level counter
 
+drowsy_start_time = None
+emergency_triggered = False
+
 # Function to trigger a buzzer and print warning
 def buzzer():
     winsound.Beep(f, t)
@@ -53,16 +56,38 @@ while True:
         img = r.plot()  # Draw results on frame
         boxes = r.boxes
         for box in boxes:
-            cls = int(box.cls)  # Class label (0 = closed eyes)
+            cls = int(box.cls)   # Class label (0 = closed eyes)
+
             if cls == 0:
-                count += 1
-                if count > 100:
-                    buzzer()  # Alert if eyes have been closed too long
-            else:
-                count -= 5  # Decrease counter if eyes are open
-                if count < 20:
-                    count = 0
-            print(f"Eye Closure Count: {count}")
+                count+=1
+
+    if count > 100:
+
+        buzzer()
+
+        # Start timer if not already started
+        if drowsy_start_time is None:
+            drowsy_start_time = time.time()
+
+        elapsed = time.time() - drowsy_start_time
+
+        print(f"Drowsy for {int(elapsed)} seconds")
+
+        # Emergency after 20 seconds
+        if elapsed > 20 and not emergency_triggered:
+            print("EMERGENCY ALERT TRIGGERED")
+
+            emergency_triggered = True # Alert if eyes have been closed too long
+        else:
+            count -= 5
+
+    if count < 20:
+        count = 0
+
+        # Reset timer if driver wakes up
+        drowsy_start_time = None
+        emergency_triggered = False
+    print(f"Eye Closure Count: {count}")
 
     # Apply yawn detection (model2)
     results2 = model2.track(img, stream=True, persist=True, conf=0.8)
