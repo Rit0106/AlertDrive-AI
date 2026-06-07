@@ -29,8 +29,8 @@ cap = cv2.VideoCapture(0)
 count = 0       # Eye closure count
 ycount = 0      # Yawn detection count
 frame = 0       # Frame counter
-f = 1000        # Frequency for buzzer
-t = 100         # Duration of buzzer beep (ms)
+f = 2000        # Frequency for buzzer
+t = 1000         # Duration of buzzer beep (ms)
 tired = 0       # Tiredness level counter
 
 drowsy_start_time = None
@@ -40,6 +40,32 @@ emergency_triggered = False
 def buzzer():
     winsound.Beep(f, t)
     print("Take a break")
+def calculate_fatigue_score(count, ycount, tired):
+
+    score = 0
+
+    score += min(count // 2, 40)
+
+    score += min(ycount // 5, 30)
+
+    score += min(tired * 10, 30)
+
+    return min(score, 100)
+
+
+def get_status(score):
+
+    if score < 30:
+        return "ALERT"
+
+    elif score < 60:
+        return "SLIGHTLY TIRED"
+
+    elif score < 80:
+        return "DROWSY"
+
+    else:
+        return "CRITICAL"
 
 while True:
     frame += 1  # Count each frame
@@ -56,37 +82,51 @@ while True:
         img = r.plot()  # Draw results on frame
         boxes = r.boxes
         for box in boxes:
-            cls = int(box.cls)   # Class label (0 = closed eyes)
 
+            cls = int(box.cls)
+            print("Detected class:", cls)
+
+    # Eyes closed
             if cls == 0:
-                count+=1
 
-    if count > 100:
+                count += 1
 
-        buzzer()
+                print(f"Eye Closure Count: {count}")
 
-        # Start timer if not already started
-        if drowsy_start_time is None:
-            drowsy_start_time = time.time()
+        # Drowsiness detected
+                if count > 100:
 
-        elapsed = time.time() - drowsy_start_time
+                    buzzer()
 
-        print(f"Drowsy for {int(elapsed)} seconds")
+            # Start timer only once
+                    if drowsy_start_time is None:
+                        drowsy_start_time = time.time()
 
-        # Emergency after 20 seconds
-        if elapsed > 20 and not emergency_triggered:
-            print("EMERGENCY ALERT TRIGGERED")
+            # Calculate elapsed time
+                    elapsed = time.time() - drowsy_start_time
 
-            emergency_triggered = True # Alert if eyes have been closed too long
-        else:
-            count -= 5
+                    print(f"Drowsy for {int(elapsed)} seconds")
 
-    if count < 20:
-        count = 0
+            # Emergency trigger after 20 seconds
+                    if elapsed > 20 and not emergency_triggered:
 
-        # Reset timer if driver wakes up
-        drowsy_start_time = None
-        emergency_triggered = False
+                        print("🚨 EMERGENCY ALERT TRIGGERED 🚨")
+
+                        emergency_triggered = True
+
+    # Eyes open
+            else:
+
+                count -= 5
+
+                if count < 0:
+                    count = 0
+
+                print(f"Eye Closure Count: {count}")
+
+        # Reset if driver wakes up
+                drowsy_start_time = None
+                emergency_triggered = False
     print(f"Eye Closure Count: {count}")
 
     # Apply yawn detection (model2)
@@ -115,6 +155,33 @@ while True:
         # print(f"Frame: {frame}, Yawn Count: {ycount}")
 
     # Show the processed video feed
+        fatigue_score = calculate_fatigue_score(
+        count,
+        ycount,
+        tired
+    )
+
+    status = get_status(fatigue_score)
+
+    cv2.putText(
+        img,
+        f"Status: {status}",
+        (20, 40),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 255, 0),
+        2
+    )
+
+    cv2.putText(
+        img,
+        f"Fatigue Score: {fatigue_score}",
+        (20, 80),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        (0, 0, 255),
+        2
+    )
     cv2.imshow("Image", img)
 
     # Break the loop if 'q' is pressed
